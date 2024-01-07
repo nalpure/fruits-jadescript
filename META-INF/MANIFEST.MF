@@ -1,0 +1,12 @@
+Manifest-Version: 1.0
+Automatic-Module-Name: fruit_buyer
+Bundle-ManifestVersion: 2
+Bundle-Name: fruit_buyer
+Bundle-Vendor: My Company
+Bundle-Version: 1.0.0.qualifier
+Bundle-SymbolicName: fruit_buyer; singleton:=true
+Bundle-ActivationPolicy: lazy
+Require-Bundle: it.unipr.ailab.jadescript
+Import-Package: org.apache.log4j,
+ org.apache.commons.logging
+Bundle-RequiredExecutionEnvironment: JavaSE-17

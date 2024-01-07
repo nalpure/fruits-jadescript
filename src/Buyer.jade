@@ -1,0 +1,137 @@
+agent Buyer uses ontology MarketplaceOntology
+    property sellers as list of aid
+    property needed_items as list of NeededItem
+    property money as integer
+    property available_offers as list of OfferBySeller
+
+    on create with args as list of text do
+        sellers of agent = ["alice" as aid, "bob" as aid, "charlotte" as aid] as list of aid
+        money of agent = 1000
+        available_offers of agent = [] of OfferBySeller
+
+        needed_items of agent = [NeededItem("apple",10),NeededItem("orange",20),NeededItem("banana",50)]
+        # Optimal buying strategy:
+        # apple: alice
+        # orange: alice -> charlotte
+        # banana: charlotte -> alice -> bob 
+        
+        activate ReceiveProductInfo
+        
+        for seller in sellers do
+            activate AskProductInfo(seller)
+        
+        log "Let's do grocery! This is what I need: " + needed_items
+        for neededItem in needed_items of agent do
+            activate BuyItem(neededItem) after "PT5S" as duration
+		        
+		        
+	# buys units of type item (potentially from multiple sellers)
+	# destroys itself when no more items needed or not available
+	# results in blocking call if no confirmation of purchase arrives
+	cyclic behaviour BuyItem
+	   property needed_item as NeededItem
+	   property offer as Offer
+	   property seller as aid
+	   
+       on create with needed_item as NeededItem do
+           needed_item of this = needed_item
+           #log "I need " + quantity of needed_item + " " + item of needed_item + "s."
+       
+       on activate do
+            best_offer = getBestOffer(item of needed_item)
+	        quantity_to_buy = 0    # initialized, as declaration-only not possible
+	        
+	        if (quantity of needed_item ≥ quantity of best_offer) do
+	            # if at least as many items of this kind are needed as offered by seller, buy all
+	            quantity_to_buy = quantity of best_offer
+	        else do
+	            # otherwise only buy as many as needed
+	            quantity_to_buy = quantity of needed_item
+	            
+	        if quantity_to_buy = 0 do
+	            log "PROBLEM: I still need " + quantity of needed_item + " " + item of needed_item + "s but noone sells them..."
+	            destroy BuyItem(needed_item of this) 
+	        else do
+		        offer of this = OfferBySeller(item of best_offer, quantity_to_buy, price of best_offer, seller of best_offer)
+		        seller of this = seller of best_offer
+		        
+		        #log "I am now waiting for the confirmation of the purchase of " + quantity of offer + " " + item of offer + "s from seller " + name of seller
+		        send message request Purchase(offer of this) to seller of this
+        
+	   
+	   # when the purchase is confirmed: update money, available offers, needed items 
+	   # and make (if seller doesn't have enough units) recursive call for the still needed items of specified type
+	   on message inform PurchaseConfirmation(offer of this) do
+	       Sender = sender of message
+	       if not (Sender = seller) do
+	            log "Sorry " + name of sender + " but I want to do this business with " + name of seller + ". I'll ignore you.'"
+	       else do     
+	            money of agent = money of agent - (quantity of offer * price of offer)    
+	            log " ~~~~~~~~~~~~~~~~~ BOUGHT: " + quantity of offer + " " + item of offer + "s for a price of " + price of offer + " each, from seller '" + name of seller + "'. Left money: " + money of agent + " ~~~~~~~~~~~~~~~~~"   
+                
+                # update available offers property of agent
+                for sellers_offer in available_offers of agent do
+                    if (item of sellers_offer = item of offer) and (seller of sellers_offer = seller of this) do
+                        remove sellers_offer from available_offers of agent
+                        #log "removed: " + sellers_offer
+                        
+                        if (quantity of sellers_offer > quantity of offer) do
+                            updated_quantity = quantity of sellers_offer - quantity of offer
+                            updated_sellers_offer = OfferBySeller(item of offer, updated_quantity, price of offer, seller)
+                            add updated_sellers_offer to available_offers of agent
+                            #log "added: " + updated_sellers_offer
+                        break
+                        
+                # update needed items property of agent
+                for neededItem in needed_items of agent do
+                    if (item of neededItem = item of offer) do
+                        remove neededItem from needed_items of agent
+                        #log "removed: " + neededItem
+                                
+                        if (quantity of neededItem > quantity of offer) do
+                            updated_quantity = quantity of neededItem - quantity of offer
+                            updated_needed_item = NeededItem(item of neededItem, updated_quantity)
+                            add updated_needed_item to needed_items of agent
+                            #log "added: " + updated_needed_item
+                            log "The seller did not have enough units. I still need " + updated_quantity + " " + item of needed_item + "s."
+                            # RECURSIVE CALL
+                            activate BuyItem(updated_needed_item) #after "PT1S" as duration
+                        break
+                        
+                destroy BuyItem(needed_item of this) 
+	                        
+	
+	# returns cheapest offer amongst all available offers for type 'item_'                        
+	function getBestOffer(item_ as text) as OfferBySeller do   
+	    min = 999999    # large value
+	    best_offer = OfferBySeller(item_, 0, min, (sellers of agent)[0])    # dummy object   
+	    
+	    for offer in available_offers of agent do     
+	        if (item of offer = item_) and (price of offer < min) do
+	            min = price of offer
+	            best_offer = offer
+	    #log "I found the best offer for " + item_ + "s: " + best_offer
+	    return best_offer
+
+
+
+	oneshot behaviour AskProductInfo
+	    property seller as aid
+	    
+	    on create with seller as aid do
+	        seller of this = seller
+	        
+	    on activate do
+	        #log "Asking for info of seller " + name of seller
+	        send message request TellInventory to seller
+	        
+	        
+    cyclic behaviour ReceiveProductInfo
+        on message inform ReplyOffers(offer_list as list of Offer) do
+            seller = sender of message
+            for offer in offer_list do
+                add OfferBySeller(item of offer, quantity of offer, price of offer, seller) to available_offers of agent
+            #log "I now know of the following offers: " + available_offers of agent
+            
+     
+            

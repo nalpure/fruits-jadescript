@@ -1,0 +1,54 @@
+agent Bob uses ontology MarketplaceOntology
+    property inventory as list of Offer
+    property money as integer
+
+    on create with args as list of text do
+        # initialize agent's properties        
+        inventory of agent = [Offer("apple",4,2),Offer("banana",2000,3),Offer("avocado",17,1)] as list of Offer
+        money of agent = 0
+        
+        # wait for customers to ask information / buy items
+        activate TalkToCustomersBob
+        activate SellProductBob
+
+
+    cyclic behaviour TalkToCustomersBob    
+        on message request TellInventory do
+            sender_agent = sender of message
+            log "Hello, this is what I have to offer: " + inventory of agent
+            send message inform ReplyOffers(inventory) to sender_agent
+            
+            
+    cyclic behaviour SellProductBob
+        on message request Purchase(offer as Offer) do
+           sender_agent = sender of message
+           log "Processing purchase of " + quantity of offer + " " + item of offer + "s, bought by " + name of sender_agent
+           
+           available = false
+           available_offer = Offer("none", -1, -1)
+           
+           for o in inventory do
+               if item of o = item of offer do
+                   available = true
+                   available_offer = o
+                   break     
+           
+           if available do
+                if (quantity of available_offer ≥ quantity of offer) and (price of available_offer = price of offer) do
+                       remove available_offer from inventory
+                       log "removed: " + available_offer
+                       money of agent = money of agent + quantity of offer * price of offer
+                       
+                       if (quantity of available_offer > quantity of offer) do
+                          updated_quantity = quantity of available_offer - quantity of offer
+                          updated_available_offer = Offer(item of available_offer, updated_quantity, price of available_offer)
+                          add updated_available_offer to inventory
+                          log "added: " + updated_available_offer
+                       
+                       log "Glad having done business with you. My new account balance is: " + money of agent
+                       send message inform PurchaseConfirmation(offer) to sender_agent
+                          
+                else do
+                       log "Sorry, but we do not have a deal. I guess I'll just ignore you."   
+           else do
+                log "Sorry, I do not seem to have any " + item of offer + "s available. I guess I'll just ignore you."       

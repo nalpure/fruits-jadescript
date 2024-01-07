@@ -1,0 +1,13 @@
+
+ontology MarketplaceOntology
+    concept NeededItem(item as text, quantity as integer)
+    concept Offer(item as text, quantity as integer, price as integer) extends NeededItem   
+    concept OfferBySeller(item as text, quantity as integer, price as integer, seller as aid) extends Offer
+
+    action TellInventory
+    action Purchase(offer as Offer)
+    
+    predicate ReplyOffers(offer_list as list of Offer)
+    predicate PurchaseConfirmation(offer as Offer)
+    
+    
